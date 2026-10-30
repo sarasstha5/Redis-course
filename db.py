@@ -121,7 +121,7 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
             redis_client.set(
                 cache_key,
                 json.dumps(post_data),
-                ex=60,
+                ex=300,
             )
             print("CACHE SAVED")
 
@@ -131,9 +131,9 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
     # 4. Return the post
     return post_data
 
-@router.put("/{post_id}")
-def update_post(post_id:int,data = PostUpdate, db:Session=Depends(get_db)):
-    post = db.query(Post).filter(post_id == Post.id).first()
+@router.put("/{post_id}", response_model=PostResponse)
+def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == post_id).first()
 
     if post is None:
         raise HTTPException(
@@ -159,4 +159,29 @@ def update_post(post_id:int,data = PostUpdate, db:Session=Depends(get_db)):
         "id": post.id,
         "title": post.title,
         "category": post.category
+    }
+
+@app.delete("/{post_id}")
+def delete_post(post_id:int,db:Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == post_id).first()
+
+    if post is None:
+        raise HTTPException(
+            status_code=404,
+            detail= "Post not Found"
+        )
+    db.delete(post)
+
+    try:
+        cache_post = redis_client.get(f"post:{post_id}")
+        if cache_post is not None:
+            print("cache deleted")
+            redis_client.delete(f"post:{post_id}")
+
+    except redis.exceptions.RedisError as e:
+        print("redis unavailable",e)
+
+    return{
+        "message": "post deleted successfully",
+        "post_id" : post_id
     }
