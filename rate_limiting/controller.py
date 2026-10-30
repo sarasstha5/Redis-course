@@ -6,6 +6,7 @@ from rate_limiting.model import User
 from rate_limiting.scheme import UserCreate, UserLogin
 from rate_limiting.security import get_password_hash, verify_password
 from rate_limiting.rate_limiter import check_rate_limit
+from rate_limiting.rate_limiter2 import check_sliding_window
 from fastapi import Request
 
 import redis
@@ -50,7 +51,8 @@ def login(data: UserLogin, request:Request, db: Session = Depends(get_db)):
     
     ip_address = request.client.host
 
-    allowed = check_rate_limit(redis_client, ip_address)
+    #allowed = check_rate_limit(redis_client, ip_address) #Fixed window counter
+    allowed = check_sliding_window(redis_client,ip_address) #sliding window log
 
     if not allowed:
         raise HTTPException(
