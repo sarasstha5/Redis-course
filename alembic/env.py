@@ -5,6 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 from edge_cache_strategies.transaction_outbox_pattern import Base
+from user.model import User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
