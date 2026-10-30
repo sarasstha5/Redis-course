@@ -142,35 +142,75 @@ def get_post(post_id: int, db: Session = Depends(get_db)):
     # 4. Return the post
     return post_data
 
-@router.put("/{post_id}", response_model=PostResponse)
-def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
+#update the post
+@router.put("/{post_id}")
+def update_post(post_id: int,data: PostCreate,db: Session = Depends(get_db)):
     post = db.query(Post).filter(Post.id == post_id).first()
 
     if post is None:
         raise HTTPException(
             status_code=404,
-            detail= "Post not Found"
+            detail="Post not found"
         )
 
-    # 1. Update the PostgreSQL record
     post.title = data.title
     post.category = data.category
 
+    # Create a pending cache invalidation event
+    event = OutboxEvent(
+        event_type="invalidate_cache",
+        post_id=post_id,
+        status="pending"
+    )
+
+    db.add(event)
+
+    try:
+        # Save BOTH changes together
+        db.commit()
+        db.refresh(post)
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message": "Post updated successfully",
+        "post": {
+            "id": post.id,
+            "title": post.title,
+            "category": post.category
+        }
+    }
+
+@router.post("/process-outbox")
+def process_outbox(db: Session = Depends(get_db)):
+    events = (
+        db.query(OutboxEvent)
+        .filter(OutboxEvent.status == "pending")
+        .all()
+    )
+
+    processed = 0
+
+    for event in events:
+        try:
+            redis_client.delete(f"post:{event.post_id}")
+
+            event.status = "processed"
+            processed += 1
+
+        except redis.exceptions.RedisError as e:
+            print(f"Failed to process event {event.id}: {e}")
 
     db.commit()
-    db.refresh(post)
-    
-    # 2. Invalidate the Redis cache
-    try:
-        redis_client.delete(f"post:{post_id}")
-        print("CACHE INVALIDATED")
-    except redis.exceptions.RedisError as e:
-        print("Could not invalidate Redis cache:", e)
+
     return {
-        "id": post.id,
-        "title": post.title,
-        "category": post.category
+        "message": "Outbox processing completed",
+        "processed": processed,
+        "total_pending": len(events)
     }
+    
 
 @app.delete("/{post_id}")
 def delete_post(post_id:int,db:Session = Depends(get_db)):
