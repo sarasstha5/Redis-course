@@ -1,3 +1,4 @@
+#2. Rate limiter - sliding window log
 SLIDING_WINDOW_SCRIPT = """
 local current_time = tonumber(ARGV[1])
 local window = tonumber(ARGV[2])
