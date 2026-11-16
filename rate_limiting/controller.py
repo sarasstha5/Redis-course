@@ -8,6 +8,8 @@ from rate_limiting.security import get_password_hash, verify_password
 from rate_limiting.rate_limiter import check_rate_limit
 from rate_limiting.rate_limiter2 import check_sliding_window
 from rate_limiting.rate_limiting3 import check_sliding_counter
+from rate_limiting.rate_limiter4 import check_token_bucket
+from rate_limiting.rate_limiter5 import check_leaky_bucket
 from fastapi import Request
 
 import redis
@@ -51,10 +53,13 @@ def login(data: UserLogin, request:Request, db: Session = Depends(get_db)):
 
     
     ip_address = request.client.host
+    print(f"IP Address: {ip_address}")
 
-    #allowed = check_rate_limit(redis_client, ip_address) #Fixed window counter
-    #allowed = check_sliding_window(redis_client,ip_address) #sliding window log
-    allowed = check_sliding_counter(redis_client,ip_address) #sliding window counter
+    #allowed = check_rate_limit(redis_client, ip_address)        #Fixed window counter
+    #allowed = check_sliding_window(redis_client,ip_address)     #sliding window log
+    #allowed = check_sliding_counter(redis_client,ip_address)    #sliding window counter
+    #allowed = check_token_bucket(redis_client,ip_address)       #token bucket
+    allowed = check_leaky_bucket(redis_client, ip_address)       #leaky bucket
 
     if not allowed:
         raise HTTPException(
